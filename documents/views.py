@@ -16,13 +16,13 @@ def upload_document(request):
 
         if not uploaded_file:
             return render(request, 'documents/upload.html',
-                        {'error': 'Please select a file.'})
+                          {'error': 'Please select a file.'})
 
         file_type = get_file_type(uploaded_file.name)
 
         if file_type == 'unknown':
             return render(request, 'documents/upload.html',
-                        {'error': 'Unsupported file type.'})
+                          {'error': 'Unsupported file type.'})
 
         doc = Document(title=title, file=uploaded_file, file_type=file_type)
         doc.save()
@@ -30,7 +30,6 @@ def upload_document(request):
         file_path = doc.file.path
 
         if file_type == 'image':
-            # Run through OpenCV + PaddleOCR pipeline
             processed = preprocess_image(file_path)
             with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
                 cv2.imwrite(tmp.name, processed)
@@ -38,7 +37,6 @@ def upload_document(request):
                 os.unlink(tmp.name)
             doc.extracted_text = validate_text(raw_items)
         else:
-            # Directly extract text from the file
             doc.extracted_text = process_file(file_path, file_type)
 
         doc.save()
@@ -63,3 +61,23 @@ def search_documents(request):
         'results': results,
         'query': query
     })
+
+
+def delete_document(request, pk):
+    doc = get_object_or_404(Document, pk=pk)
+    if request.method == 'POST':
+        # Delete the actual file from disk too
+        if doc.file and os.path.exists(doc.file.path):
+            os.remove(doc.file.path)
+        doc.delete()
+        return redirect('upload_document')
+    return render(request, 'documents/confirm_delete.html', {'doc': doc})
+
+
+def edit_document(request, pk):
+    doc = get_object_or_404(Document, pk=pk)
+    if request.method == 'POST':
+        doc.title = request.POST.get('title', doc.title)
+        doc.save()
+        return redirect('document_detail', pk=doc.pk)
+    return render(request, 'documents/edit.html', {'doc': doc})

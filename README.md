@@ -4,7 +4,6 @@ An OCR-based document processing system built for IOCL (Indian Oil Corporation L
 
 ## Team Members
 - Gyan Ankur Das
-- Jyotirmoy Das
 - Bitopan Sarmah
 - Tinku Moni Kaushik
 - Baidurjya Bharadwaz
