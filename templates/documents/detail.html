@@ -1,0 +1,17 @@
+{% extends "documents/base.html" %}
+{% block content %}
+<h2>{{ doc.title }}
+    <span class="badge bg-secondary ms-2">{{ doc.file_type|upper }}</span>
+</h2>
+<p class="text-muted">Uploaded: {{ doc.uploaded_at|date:"d M Y, H:i" }}</p>
+
+{% if doc.file_type == 'image' %}
+<img src="{{ doc.file.url }}" class="img-fluid mb-3" style="max-height:400px">
+{% endif %}
+
+<h5>Extracted Text:</h5>
+<pre class="bg-light p-3 rounded" style="white-space:pre-wrap;">{{ doc.extracted_text }}</pre>
+
+<a href="/" class="btn btn-secondary mt-2">Upload Another</a>
+<a href="/search/" class="btn btn-outline-primary mt-2">Search Documents</a>
+{% endblock %}

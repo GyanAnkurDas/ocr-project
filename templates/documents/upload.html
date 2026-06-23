@@ -1,0 +1,25 @@
+{% extends "documents/base.html" %}
+{% block content %}
+<h2>Upload Document</h2>
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="mb-3">
+        <label class="form-label">Document Title</label>
+        <input type="text" name="title" class="form-control" required>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Upload File</label>
+        <input type="file" name="file" class="form-control"
+            accept=".jpg,.jpeg,.png,.bmp,.pdf,.docx,.xlsx,.csv" required>
+        <div class="form-text">
+            Supported: Images (JPG, PNG), PDF, Word (DOCX), Excel (XLSX), CSV
+        </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Process Document</button>
+</form>
+{% endblock %}
