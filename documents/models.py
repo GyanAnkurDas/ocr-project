@@ -8,11 +8,18 @@ class Document(models.Model):
         ('xlsx', 'Excel Spreadsheet'),
         ('csv', 'CSV File'),
     ]
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('done', 'Done'),
+        ('failed', 'Failed'),
+    ]
 
     title = models.CharField(max_length=255)
     file = models.FileField(upload_to='documents/')
     file_type = models.CharField(max_length=10, choices=FILE_TYPES, default='image')
     extracted_text = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

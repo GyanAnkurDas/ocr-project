@@ -1,55 +1,83 @@
+from .utils.file_processor import get_file_type, process_file
 from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.http import HttpResponse
+from django.db.models import Count
 from .models import Document
 from .utils.preprocess import preprocess_image
 from .utils.ocr_engine import extract_text
 from .utils.validator import validate_text
-from .utils.file_processor import get_file_type, process_file
+
 import cv2
 import tempfile
 import os
+import io
 
 
+@login_required
 def upload_document(request):
     if request.method == 'POST':
         uploaded_file = request.FILES.get('file')
-        title = request.POST.get('title', 'Untitled')
+        title = request.POST.get('title', 'Untitled').strip()
 
         if not uploaded_file:
             return render(request, 'documents/upload.html',
-                          {'error': 'Please select a file.'})
+                        {'error': 'Please select a file.'})
+
+        if uploaded_file.size > 20 * 1024 * 1024:
+            return render(request, 'documents/upload.html',
+                        {'error': 'File too large. Maximum is 20MB.'})
 
         file_type = get_file_type(uploaded_file.name)
-
         if file_type == 'unknown':
             return render(request, 'documents/upload.html',
-                          {'error': 'Unsupported file type.'})
+                        {'error': 'Unsupported file type.'})
 
-        doc = Document(title=title, file=uploaded_file, file_type=file_type)
-        doc.save()
+        try:
+            doc = Document(title=title, file=uploaded_file,
+                        file_type=file_type, status='processing')
+            doc.save()
 
-        file_path = doc.file.path
+            file_path = doc.file.path
 
-        if file_type == 'image':
-            processed = preprocess_image(file_path)
-            with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
-                cv2.imwrite(tmp.name, processed)
-                raw_items = extract_text(tmp.name)
-                os.unlink(tmp.name)
-            doc.extracted_text = validate_text(raw_items)
-        else:
-            doc.extracted_text = process_file(file_path, file_type)
+            if file_type == 'image':
+                processed = preprocess_image(file_path)
+                with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
+                    cv2.imwrite(tmp.name, processed)
+                    raw_items = extract_text(tmp.name)
+                    os.unlink(tmp.name)
+                doc.extracted_text = validate_text(raw_items)
+            else:
+                doc.extracted_text = process_file(file_path, file_type)
 
-        doc.save()
-        return redirect('document_detail', pk=doc.pk)
+            if not doc.extracted_text.strip():
+                doc.extracted_text = '[No text could be extracted from this document]'
+
+            doc.status = 'done'
+            doc.save()
+            return redirect('document_detail', pk=doc.pk)
+
+        except Exception as e:
+            try:
+                if doc.pk:
+                    if doc.file and os.path.exists(doc.file.path):
+                        os.remove(doc.file.path)
+                    doc.delete()
+            except:
+                pass
+            return render(request, 'documents/upload.html', {
+    'error': f'Error: {str(e)}'
+}) 
 
     return render(request, 'documents/upload.html')
-
-
+@login_required
 def document_detail(request, pk):
     doc = get_object_or_404(Document, pk=pk)
     return render(request, 'documents/detail.html', {'doc': doc})
 
-
+@login_required
 def search_documents(request):
     query = request.GET.get('q', '')
     results = []
@@ -62,7 +90,7 @@ def search_documents(request):
         'query': query
     })
 
-
+@login_required
 def delete_document(request, pk):
     doc = get_object_or_404(Document, pk=pk)
     if request.method == 'POST':
@@ -73,7 +101,7 @@ def delete_document(request, pk):
         return redirect('upload_document')
     return render(request, 'documents/confirm_delete.html', {'doc': doc})
 
-
+@login_required
 def edit_document(request, pk):
     doc = get_object_or_404(Document, pk=pk)
     if request.method == 'POST':
@@ -81,3 +109,60 @@ def edit_document(request, pk):
         doc.save()
         return redirect('document_detail', pk=doc.pk)
     return render(request, 'documents/edit.html', {'doc': doc})
+
+def login_view(request):
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        user = authenticate(request, username=username, password=password)
+        if user:
+            login(request, user)
+            return redirect('dashboard')
+        else:
+            return render(request, 'documents/login.html',
+                          {'error': 'Invalid username or password.'})
+    return render(request, 'documents/login.html')
+
+
+def logout_view(request):
+    logout(request)
+    return redirect('login')
+
+
+def register_view(request):
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        password2 = request.POST.get('password2')
+
+        if password != password2:
+            return render(request, 'documents/register.html',
+                          {'error': 'Passwords do not match.'})
+
+        from django.contrib.auth.models import User
+        if User.objects.filter(username=username).exists():
+            return render(request, 'documents/register.html',
+                          {'error': 'Username already taken.'})
+
+        user = User.objects.create_user(username=username, password=password)
+        login(request, user)
+        return redirect('dashboard')
+
+    return render(request, 'documents/register.html')
+
+@login_required
+def dashboard(request):
+    from django.db.models import Count
+    total_docs = Document.objects.count()
+    recent_docs = Document.objects.order_by('-uploaded_at')[:5]
+    type_counts = Document.objects.values('file_type').annotate(count=Count('file_type'))
+    type_data = {item['file_type']: item['count'] for item in type_counts}
+    return render(request, 'documents/dashboard.html', {
+        'total_docs': total_docs,
+        'recent_docs': recent_docs,
+        'type_data': type_data,
+    })

@@ -7,8 +7,18 @@
 </head>
 <body>
 <nav class="navbar navbar-dark bg-dark px-4">
-    <a class="navbar-brand" href="/">OCR System</a>
-    <a class="nav-link text-white" href="/search/">Search</a>
+    <a class="navbar-brand fw-bold" href="/">OCR SYSTEM - IOCL</a>
+    <div class="d-flex gap-3 align-items-center">
+        {% if user.is_authenticated %}
+            <a class="nav-link text-white" href="/">Dashboard</a>
+            <a class="nav-link text-white" href="/upload/">Upload</a>
+            <a class="nav-link text-white" href="/search/">Search</a>
+            <span class="text-white-50 small">| {{ user.username }}</span>
+            <a class="nav-link text-white" href="/logout/">Logout</a>
+        {% else %}
+        <a class="nav-link text-white" href="/login/">Login</a>
+        {% endif %} 
+    </div>
 </nav>
 <div class="container mt-4">
     {% block content %}{% endblock %}
