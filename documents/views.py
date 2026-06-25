@@ -165,7 +165,9 @@ def dashboard(request):
     doc_type = request.GET.get('type')
     
     if doc_type == 'word':
-        recent_docs = Document.objects.filter(file_type__in=['docx', 'xlsx', 'csv']).order_by('-uploaded_at')[:50]
+        recent_docs = Document.objects.filter(file_type='docx').order_by('-uploaded_at')[:50]
+    elif doc_type == 'excel_csv':
+        recent_docs = Document.objects.filter(file_type__in=['xlsx', 'csv']).order_by('-uploaded_at')[:50]
     elif doc_type:
         recent_docs = Document.objects.filter(file_type=doc_type).order_by('-uploaded_at')[:50]
     else:
@@ -174,13 +176,15 @@ def dashboard(request):
     type_counts = Document.objects.values('file_type').annotate(count=Count('file_type'))
     type_data = {item['file_type']: item['count'] for item in type_counts}
     
-    word_count = type_data.get('docx', 0) + type_data.get('xlsx', 0) + type_data.get('csv', 0)
+    word_count = type_data.get('docx', 0)
+    excel_csv_count = type_data.get('xlsx', 0) + type_data.get('csv', 0)
     
     return render(request, 'documents/dashboard.html', {
         'total_docs': total_docs,
         'recent_docs': recent_docs,
         'type_data': type_data,
         'word_count': word_count,
+        'excel_csv_count': excel_csv_count,
     })
 
 @login_required
