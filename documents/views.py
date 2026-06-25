@@ -44,10 +44,13 @@ def upload_document(request):
 
             if file_type == 'image':
                 processed = preprocess_image(file_path)
-                with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
-                    cv2.imwrite(tmp.name, processed)
-                    raw_items = extract_text(tmp.name)
-                    os.unlink(tmp.name)
+                tmp_fd, tmp_path = tempfile.mkstemp(suffix='.jpg')
+                os.close(tmp_fd)
+                try:
+                    cv2.imwrite(tmp_path, processed)
+                    raw_items = extract_text(tmp_path)
+                finally:
+                    os.remove(tmp_path)
                 doc.extracted_text = validate_text(raw_items)
             else:
                 doc.extracted_text = process_file(file_path, file_type)
@@ -158,11 +161,63 @@ def register_view(request):
 def dashboard(request):
     from django.db.models import Count
     total_docs = Document.objects.count()
-    recent_docs = Document.objects.order_by('-uploaded_at')[:5]
+    
+    doc_type = request.GET.get('type')
+    
+    if doc_type == 'word':
+        recent_docs = Document.objects.filter(file_type__in=['docx', 'xlsx', 'csv']).order_by('-uploaded_at')[:50]
+    elif doc_type:
+        recent_docs = Document.objects.filter(file_type=doc_type).order_by('-uploaded_at')[:50]
+    else:
+        recent_docs = Document.objects.order_by('-uploaded_at')[:50]
+        
     type_counts = Document.objects.values('file_type').annotate(count=Count('file_type'))
     type_data = {item['file_type']: item['count'] for item in type_counts}
+    
+    word_count = type_data.get('docx', 0) + type_data.get('xlsx', 0) + type_data.get('csv', 0)
+    
     return render(request, 'documents/dashboard.html', {
         'total_docs': total_docs,
         'recent_docs': recent_docs,
         'type_data': type_data,
+        'word_count': word_count,
     })
+
+@login_required
+def export_txt(request, pk):
+    doc = get_object_or_404(Document, pk=pk)
+    response = HttpResponse(doc.extracted_text, content_type='text/plain')
+    response['Content-Disposition'] = f'attachment; filename="{doc.title}.txt"'
+    return response
+
+@login_required
+def export_pdf(request, pk):
+    doc = get_object_or_404(Document, pk=pk)
+    try:
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.utils import simpleSplit
+        import io
+        
+        buffer = io.BytesIO()
+        p = canvas.Canvas(buffer, pagesize=letter)
+        width, height = letter
+        
+        y = height - 40
+        for line in doc.extracted_text.split('\n'):
+            lines = simpleSplit(line, 'Helvetica', 12, width - 80)
+            for l in lines:
+                p.drawString(40, y, l)
+                y -= 15
+                if y < 40:
+                    p.showPage()
+                    p.setFont('Helvetica', 12)
+                    y = height - 40
+        p.save()
+        buffer.seek(0)
+        
+        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{doc.title}.pdf"'
+        return response
+    except ImportError:
+        return HttpResponse("PDF export requires 'reportlab' to be installed.", status=501)
