@@ -20,7 +20,7 @@ def get_file_type(filename):
     return 'unknown'
 
 
-def extract_from_pdf(file_path):
+def extract_from_pdf(file_path, doc_id=None):
     import fitz
     import tempfile
     import os
@@ -30,7 +30,15 @@ def extract_from_pdf(file_path):
     text = ''
 
     with fitz.open(file_path) as pdf:
-        for page_num in range(len(pdf)):
+        total_pages = len(pdf)
+        for page_num in range(total_pages):
+            if doc_id:
+                try:
+                    from ..models import Document
+                    progress_pct = 10 + int((page_num / total_pages) * 80)
+                    Document.objects.filter(pk=doc_id).update(progress=progress_pct)
+                except Exception as e:
+                    print(f"Error updating progress: {e}")
             page = pdf[page_num]
 
             # Try direct text extraction first
@@ -107,9 +115,9 @@ def extract_from_csv(file_path):
     return '\n'.join(lines)
 
 
-def process_file(file_path, file_type):
+def process_file(file_path, file_type, doc_id=None):
     if file_type == 'pdf':
-        return extract_from_pdf(file_path)
+        return extract_from_pdf(file_path, doc_id)
     elif file_type == 'docx':
         return extract_from_docx(file_path)
     elif file_type == 'xlsx':

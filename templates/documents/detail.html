@@ -28,6 +28,13 @@
         <a href="/document/{{ doc.pk }}/export/pdf/" class="btn btn-outline-dark">
             ⬇ Download PDF
         </a>
+        <a href="/document/{{ doc.pk }}/retry/" class="btn btn-outline-warning">
+            🔄 Reprocess Document
+        </a>
+        {% elif doc.status == 'failed' %}
+        <a href="/document/{{ doc.pk }}/retry/" class="btn btn-outline-warning">
+            🔄 Retry Processing
+        </a>
         {% endif %}
         <a href="/document/{{ doc.pk }}/edit/" class="btn btn-outline-primary">
             Edit Title
@@ -46,13 +53,58 @@
 
 <h5>Extracted Text:</h5>
 {% if doc.status == 'pending' or doc.status == 'processing' %}
-<div class="alert alert-info">
-    OCR is running in the background. This page refreshes automatically.
+<div class="alert alert-info shadow-sm mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <div>
+            <strong>OCR is running in the background.</strong> This page refreshes automatically.
+        </div>
+        <button class="btn btn-sm btn-info text-white fw-bold" disabled>
+            ⌛ Progress: {{ doc.progress }}%
+        </button>
+    </div>
+    <div class="progress" style="height: 20px;">
+        <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" 
+             role="progressbar" 
+             style="width: {{ doc.progress }}%;" 
+             aria-valuenow="{{ doc.progress }}" 
+             aria-valuemin="0" 
+             aria-valuemax="100">
+            {{ doc.progress }}%
+        </div>
+    </div>
+</div>
+{% elif doc.status == 'failed' %}
+<div class="alert alert-danger d-flex justify-content-between align-items-center shadow-sm mb-3">
+    <div>
+        <strong>Processing Failed!</strong> An error occurred while running OCR on this document.
+    </div>
+    <a href="/document/{{ doc.pk }}/retry/" class="btn btn-danger btn-sm">
+        🔄 Retry Reprocessing
+    </a>
 </div>
 {% endif %}
-<pre class="bg-light p-3 rounded" style="white-space:pre-wrap;">{{ doc.extracted_text }}</pre>
+<pre class="bg-light p-3 rounded mb-1" style="white-space:pre-wrap;">{{ doc.extracted_text }}</pre>
 
-<a href="/" class="btn btn-secondary mt-2">Dashboard</a>
-<a href="/search/" class="btn btn-outline-primary mt-2">Search</a>
+{% if doc.status == 'done' %}
+<div class="mb-3 text-end">
+    <span class="text-muted small">Not extracted properly? </span>
+    <a href="/document/{{ doc.pk }}/retry/" class="btn btn-sm btn-link text-warning p-0 align-baseline">
+        🔄 Reprocess Document
+    </a>
+</div>
+{% endif %}
+
+<div class="mt-3">
+    <a href="/" class="btn btn-secondary">Dashboard</a>
+    <a href="/search/" class="btn btn-outline-primary">Search</a>
+</div>
+
+<script>
+    // If we just navigated from the upload page, modify history so the browser's Back button goes to Dashboard
+    if (document.referrer && document.referrer.includes('/upload/')) {
+        history.replaceState(null, '', '/');
+        history.pushState(null, '', window.location.href);
+    }
+</script>
 
 {% endblock %}

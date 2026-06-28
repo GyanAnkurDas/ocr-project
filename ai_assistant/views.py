@@ -107,7 +107,22 @@ def chat(request):
             _save_history(request, 'document', history, doc.pk)
         else:
             history = _get_history(request, 'general')
-            answer = general_chat(message, history)
+            
+            docs = _done_documents()
+            documents_list = []
+            for d in docs:
+                snippet = d.extracted_text[:600]
+                if len(d.extracted_text) > 600:
+                    snippet += '...'
+                documents_list.append(
+                    f"Document ID: {d.pk}\n"
+                    f"Title: {d.title}\n"
+                    f"Uploaded: {d.uploaded_at.strftime('%Y-%m-%d %H:%M')}\n"
+                    f"Content Snippet: {snippet}\n"
+                    "---"
+                )
+            
+            answer = general_chat(message, history, documents_list)
             history.extend([
                 {'role': 'user', 'content': message},
                 {'role': 'assistant', 'content': answer},

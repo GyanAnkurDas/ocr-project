@@ -13,4 +13,5 @@ urlpatterns = [
     # path('register/', views.register_view, name='register'),
     path('document/<int:pk>/export/txt/', views.export_txt, name='export_txt'),
     path('document/<int:pk>/export/pdf/', views.export_pdf, name='export_pdf'),
+    path('document/<int:pk>/retry/', views.retry_document, name='retry_document'),
 ]
