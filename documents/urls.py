@@ -12,4 +12,5 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('document/<int:pk>/export/txt/', views.export_txt, name='export_txt'),
     path('document/<int:pk>/export/pdf/', views.export_pdf, name='export_pdf'),
+    path('document/<int:pk>/retry/', views.retry_document, name='retry_document'),
 ]

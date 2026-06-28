@@ -191,3 +191,18 @@ def export_pdf(request, pk):
         return response
     except ImportError:
         return HttpResponse("PDF export requires 'reportlab' to be installed.", status=501)
+
+
+@login_required
+def retry_document(request, pk):
+    doc = get_object_or_404(Document, pk=pk)
+    if doc.status in ['failed', 'done']:
+        doc.status = 'pending'
+        doc.progress = 0
+        doc.extracted_text = ''
+        doc.save(update_fields=['status', 'progress', 'extracted_text'])
+        transaction.on_commit(lambda: process_document.delay(doc.pk))
+        messages.success(request, 'Document reprocessing has started.')
+    else:
+        messages.warning(request, 'Document is already being processed.')
+    return redirect('document_detail', pk=doc.pk)

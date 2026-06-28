@@ -17,7 +17,8 @@ def process_document(self, document_id):
         return
 
     doc.status = 'processing'
-    doc.save(update_fields=['status'])
+    doc.progress = 0
+    doc.save(update_fields=['status', 'progress'])
 
     try:
         file_path = doc.file.path
@@ -28,7 +29,14 @@ def process_document(self, document_id):
             from .utils.preprocess import preprocess_image
             from .utils.validator import validate_text
 
+            doc.progress = 10
+            doc.save(update_fields=['progress'])
+
             processed = preprocess_image(file_path)
+
+            doc.progress = 40
+            doc.save(update_fields=['progress'])
+
             tmp_fd, tmp_path = tempfile.mkstemp(suffix='.jpg')
             os.close(tmp_fd)
             try:
@@ -37,18 +45,26 @@ def process_document(self, document_id):
             finally:
                 if os.path.exists(tmp_path):
                     os.remove(tmp_path)
+
+            doc.progress = 80
+            doc.save(update_fields=['progress'])
+
             extracted_text = validate_text(raw_items)
         else:
             from .utils.file_processor import process_file
 
-            extracted_text = process_file(file_path, doc.file_type)
+            doc.progress = 10
+            doc.save(update_fields=['progress'])
+
+            extracted_text = process_file(file_path, doc.file_type, doc_id=doc.pk)
 
         if not extracted_text.strip():
             extracted_text = '[No text could be extracted from this document]'
 
         doc.extracted_text = extracted_text
         doc.status = 'done'
-        doc.save(update_fields=['extracted_text', 'status'])
+        doc.progress = 100
+        doc.save(update_fields=['extracted_text', 'status', 'progress'])
     except Exception as exc:
         # Log the real error server-side — do NOT expose internal details to users.
         logger.error(
@@ -57,6 +73,7 @@ def process_document(self, document_id):
         )
         doc.extracted_text = '[OCR processing failed. Please try uploading the document again.]'
         doc.status = 'failed'
-        doc.save(update_fields=['extracted_text', 'status'])
+        doc.progress = 0
+        doc.save(update_fields=['extracted_text', 'status', 'progress'])
         raise
 
