@@ -27,9 +27,12 @@ def get_file_type(filename):
 
 def extract_from_pdf(file_path, doc_id=None):
     import fitz
+    import cv2
+    from .preprocess import preprocess_image
     from .ocr_engine import extract_text
     from .validator import validate_text
-    from ..models import Document
+    if doc_id:
+        from ..models import Document
 
     text = ''
 
@@ -58,24 +61,38 @@ def extract_from_pdf(file_path, doc_id=None):
             else:
                 # Scanned PDF: convert page to image and run OCR
                 logger.debug('Page %s: no text found, running OCR', page_num + 1)
-                mat = fitz.Matrix(2, 2)  # 2x zoom for better quality
+                mat = fitz.Matrix(3, 3)  # Higher zoom improves OCR on scans
                 pix = page.get_pixmap(matrix=mat)
 
-                with tempfile.NamedTemporaryFile(
-                    suffix='.png', delete=False
-                ) as tmp:
-                    pix.save(tmp.name)
-                    tmp_path = tmp.name
+                raw_fd, raw_path = tempfile.mkstemp(suffix='.png')
+                os.close(raw_fd)
+                processed_fd, processed_path = tempfile.mkstemp(suffix='.jpg')
+                os.close(processed_fd)
 
                 try:
-                    raw_items = extract_text(tmp_path)
+                    pix.save(raw_path)
+                    try:
+                        processed = preprocess_image(raw_path)
+                        cv2.imwrite(processed_path, processed)
+                        ocr_input_path = processed_path
+                    except Exception as exc:
+                        logger.warning(
+                            'Preprocessing failed for page %s, using raw image: %s',
+                            page_num + 1,
+                            exc,
+                        )
+                        ocr_input_path = raw_path
+
+                    raw_items = extract_text(ocr_input_path)
                     page_text = validate_text(raw_items)
                     if page_text.strip():
                         text += page_text + '\n'
                 except Exception as exc:
                     logger.warning('OCR failed for page %s: %s', page_num + 1, exc)
                 finally:
-                    os.unlink(tmp_path)
+                    for path in (raw_path, processed_path):
+                        if os.path.exists(path):
+                            os.unlink(path)
 
     return text.strip()
 
